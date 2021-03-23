@@ -42,11 +42,11 @@ Unfortunately, due to implicit conversion the C# 9.0 compiler does not complain 
 
 ## Runtime Impacts
 
-In order to accomodate these changes, various parts of the dotnet 64-bit runtime need to be modified. Using C# `nint` and C++ `ssize_t`, these modifications are in theory backward compatible with the existing 32-bit runtime.
+In order to accommodate these changes, various parts of the dotnet 64-bit runtime need to be modified. Using C# `nint` and C++ `ssize_t`, these modifications are in theory backward compatible with the existing 32-bit runtime.
 
 The proposal assumes that these are always enabled, irrespective of whether any assembly is marked as *legacy lengths* or *native lengths*.
 
-- The C++ runtime implementation of .NET arrays and strings need to used `ssize_t` to store their length (**TODO I believe this is already the case, verify it**).
+- The C++ runtime implementation of .NET arrays and strings need to use `ssize_t` to store their length (**TODO I believe this is already the case, verify it**).
 - The .NET runtime implementation of `Span<T>` and `ReadOnlySpan<T>` need to internally store their length as `nint`.
 - The .NET runtime implementation of `System.Array` needs to be updated to reflect the same type changes.
 - The JIT needs to be aware of *native lengths* when generating code that accesses arrays and strings, for both the `Length` property and the indexing operator.
@@ -57,11 +57,11 @@ The proposal assumes that these are always enabled, irrespective of whether any 
 
 ### Calling *Legacy Lengths* Assembly From *Native Lengths* Assembly
 
-Without any further change, a *native length* assembly passing an array (or any other types covered by this proposal) with a large length (i.e. greater than 2^31) to a *legacy lengths* assembly would result into an undefined behaviour. The most likely outcoming would be the JIT truncating the `Length` property to its lowest 32-bit, causing the callee assembly to only loop on a subset of the given array.
+Without any further change, a *native length* assembly passing an array (or any other types covered by this proposal) with a large length (i.e. greater than 2^31) to a *legacy lengths* assembly would result into an undefined behaviour. The most likely outcome would be the JIT truncating the `Length` property to its lowest 32-bit, causing the callee assembly to only loop on a subset of the given array.
 
-The proposed solution is to follow C# 8.0 nullables guard and warn/error when such a boundary is crossed in an incompatible way. As with nullables, the user can override this warning/error (**TODO exact syntax TBD, can we reuse nullables exclamation mark? Or do we stick to nullable-like preprocessor directives? IMHO the latter is probably enough**).
+The proposed solution is to follow C# 8.0 nullables compiler guards and warn/error when such a boundary is crossed in an incompatible way. As with nullables, the user can override this warning/error (**TODO exact syntax TBD, can we reuse nullables exclamation mark? Or do we stick to nullable-like preprocessor directives? IMHO the latter is probably enough**).
 
-In practice, applications rarely need to pass large amount of data to their entire source code and dependencies domain. We forsee that most applications will only need to make a small part of the source code and dependencies *native lengths* compatible. Thus enabling a smoother transition to a *native lengths*-only C# future version.
+In practice, applications rarely need to pass large amount of data to their entire source code and dependencies domain. We foresee that most applications will only need to make a small part of the source code and dependencies *native lengths* compatible. Thus enabling a smoother transition to a *native lengths*-only C# future version.
 
 ### Calling *Native Lengths* Assembly From *Legacy Lengths* Assembly
 
