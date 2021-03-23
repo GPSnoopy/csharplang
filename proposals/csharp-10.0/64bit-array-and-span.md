@@ -24,10 +24,10 @@ This proposal limits itself to arrays, `string`, `Span<T>` and `ReadOnlySpan<T>`
 
 ## Language Impacts
 
-When an assembly is compiled with *native lengths*, the change of type for lengths and indexing from `int` to `nint` means that existing code cannot compile out of the box and will need to be ported to properly support this new feature. Specifically the following constructs will need updating.
+When an assembly is compiled with *native lengths*, the change of type for lengths and indexing from `int` to `nint` means that existing code will need to be ported to properly support this new feature. Specifically the following constructs will need updating.
 
 ```c#
-for (int i = 0; i < array.Length; ++i) { /* ... */ } // If length is greather than int, this will loop forever.
+for (int i = 0; i < array.Length; ++i) { /* ... */ } // If length is greather than what's representable with int, this will loop forever.
 
 for (var i = 0; i < array.Length; ++i) { /* ... */ } // Same as above. A lot of code is written like this rather than using an explicit int type.
 ```
@@ -38,8 +38,7 @@ The correct version should be the following.
 for (nint i = 0; i < array.Length; ++i) { /* .... */ }
 ```
 
-**TODO Review existing casting C# rules with int and nint, and whether the C# compiler would allow int i to be compared to nint Length without a much needed error**
-
+Unfortunately, due to implicit conversion the C# 9.0 compiler does not complain when comparing an `int` to an `nint`. It is therefore proposed that the compiler warns when an implicit conversion occurs from `int` to `nint` for the following operations: `a < b`, `a <= b`, `a > b`, `a >= b` and `a != b`.
 
 ## Runtime Impacts
 
@@ -51,7 +50,7 @@ The proposal assumes that these are always enabled, irrespective of whether any 
 - The .NET runtime implementation of `Span<T>` and `ReadOnlySpan<T>` need to internally store their length as `nint`.
 - The .NET runtime implementation of `System.Array` needs to be updated to reflect the same type changes.
 - The JIT needs to be aware of *native lengths* when generating code that accesses arrays and strings, for both the `Length` property and the indexing operator.
-- The C#/JIT (**TODO which level implements foreach?**) needs to generate `foreach` code that is `nint` aware for arrays, `string`, `Span<T>` and `ReadOnlySpan<T>`.
+- The C# compiler and JIT compiler need to generate `foreach` code that is `nint` aware for arrays, `string`, `Span<T>` and `ReadOnlySpan<T>`.
 - The GC implementation currently assumes that containers and arrays have up to 2^31 elements and outgoing references. This limitation needs to be lifted.
 
 ## Boundaries Between Assemblies
@@ -60,9 +59,7 @@ The proposal assumes that these are always enabled, irrespective of whether any 
 
 Without any further change, a *native length* assembly passing an array (or any other types covered by this proposal) with a large length (i.e. greater than 2^31) to a *legacy lengths* assembly would result into an undefined behaviour. The most likely outcoming would be the JIT truncating the `Length` property to its lowest 32-bit, causing the callee assembly to only loop on a subset of the given array.
 
-The proposed solution is to follow C# 8.0 nullables guard and warn/error when such a boundary is crossed in an incompatible way. As with nullables, the user can override this warning/error (**TODO exact syntax TBD, can we reuse nullables exclamation mark? Or do we stick to preprocessor directives?**).
-
-**TODO should we also provide a utility method for safely checking at runtime a *native lengths* call into a *legacy lengths* assembly?**
+The proposed solution is to follow C# 8.0 nullables guard and warn/error when such a boundary is crossed in an incompatible way. As with nullables, the user can override this warning/error (**TODO exact syntax TBD, can we reuse nullables exclamation mark? Or do we stick to nullable-like preprocessor directives? IMHO the latter is probably enough**).
 
 In practice, applications rarely need to pass large amount of data to their entire source code and dependencies domain. We forsee that most applications will only need to make a small part of the source code and dependencies *native lengths* compatible. Thus enabling a smoother transition to a *native lengths*-only C# future version.
 
