@@ -2,11 +2,11 @@
 
 ## Summary
 
-Expand arrays (e.g. `float[]`), `string`, `Span<T>` and `ReadOnlySpan<T>` to have 64-bit lengths on 64-bit platforms. Also known as native lengths.
+Expand arrays (e.g. `float[]`), `string`, `Span<T>` and `ReadOnlySpan<T>` to have 64-bit lengths on 64-bit platforms (also known as native lengths).
 
 ## Motivation
 
-Currently in C#, arrays (and the other aforementioned types) are limited to storing and addressing up to 2^31 (roughly 2 billion) elements. This limits the amount of data that can be contiguously stored in memory and forces the user to spend time and effort in implementing custom-made non-standard alternatives like native memory allocation or jagged arrays. Other languages such as C++ or Python do not suffer from this limitation.
+Currently in C#, arrays (and the other aforementioned types) are limited to storing and addressing up to 2^31 (roughly 2 billion) elements. This limits the amount of data that can be contiguously stored in memory and forces the user to spend time and effort in implementing custom non-standard alternatives like native memory allocation or jagged arrays. Other languages such as C++ or Python do not suffer from this limitation.
 
 With every passing years, due to the ever-continuing increases in RAM capacity, this limitation is becoming evident to an ever-increasing number of users. For example, machine learning frameworks often deal with large amount of data and dispatch their implementation to native libraries that expect a contiguous memory layout.
 
@@ -14,9 +14,9 @@ At the type of writing this (2021-03-23), the latest high-end smartphones have 8
 
 ## Proposal
 
-The proposed solution is to change the signature of arrays, `string`, `Span<T>` and `ReadOnlySpan<T>` to have an `nint Length` property and an `nint` indexing operator (similar to what C++ does with `ssize_t`, respectively superseding the `int Length` and `int` indexing operator.
+The proposed solution is to change the signature of arrays, `string`, `Span<T>` and `ReadOnlySpan<T>` to have an `nint Length` property and an `nint` indexing operator (similar to what C++ does with `ssize_t`), respectively superseding and replacing the `int Length` and `int` indexing operator.
 
-As this would break existing C# application compilation, an opt-in mechanism similar to what was done with C# 8.0 nullables is proposed. By default, assemblies are compiled with *legacy lengths* but new assemblies (or projects that have been ported the new native lengths) can opt-in to be compiled with *native lengths* support.
+As this would break existing C# application compilation, an opt-in mechanism similar to what is done with C# 8.0 nullables is proposed. By default, assemblies are compiled with *legacy lengths* but new assemblies (or projects that have been ported the new native lengths) can opt-in to be compiled with *native lengths* support.
 
 ## Future Improvements
 
@@ -48,7 +48,8 @@ In order to accomodate these changes, various parts of the dotnet 64-bit runtime
 The proposal assumes that these are always enabled, irrespective of whether any assembly is marked as *legacy lengths* or *native lengths*.
 
 - The C++ runtime implementation of .NET arrays and strings need to used `ssize_t` to store their length (**TODO I believe this is already the case, verify it**).
-- The C# runtime implementation of `Span<T>` and `ReadOnlySpan<T>` need to internally store their length as `nint`.
+- The .NET runtime implementation of `Span<T>` and `ReadOnlySpan<T>` need to internally store their length as `nint`.
+- The .NET runtime implementation of `System.Array` needs to be updated to reflect the same type changes.
 - The JIT needs to be aware of *native lengths* when generating code that accesses arrays and strings, for both the `Length` property and the indexing operator.
 - The C#/JIT (**TODO which level implements foreach?**) needs to generate `foreach` code that is `nint` aware for arrays, `string`, `Span<T>` and `ReadOnlySpan<T>`.
 - The GC implementation currently assumes that containers and arrays have up to 2^31 elements and outgoing references. This limitation needs to be lifted.
