@@ -60,7 +60,7 @@ The proposal assumes that these are always enabled, irrespective of whether any 
 
 Without any further change, a *native length* assembly passing an array (or any other types covered by this proposal) with a large length (i.e. greater than 2^31) to a *legacy lengths* assembly would result into an undefined behaviour. The most likely outcoming would be the JIT truncating the `Length` property to its lowest 32-bit, causing the callee assembly to only loop on a subset of the given array.
 
-The proposed solution is to follow C# 8.0 nullables guard and warn/error when such a boundary is crossed in an incompatible way. As with nullables, the user can override this warning/error (**TODO exact syntax TBD, can we reuse nullables exclamation mark?**).
+The proposed solution is to follow C# 8.0 nullables guard and warn/error when such a boundary is crossed in an incompatible way. As with nullables, the user can override this warning/error (**TODO exact syntax TBD, can we reuse nullables exclamation mark? Or do we stick to preprocessor directives?**).
 
 **TODO should we also provide a utility method for safely checking at runtime a *native lengths* call into a *legacy lengths* assembly?**
 
