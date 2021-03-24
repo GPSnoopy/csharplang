@@ -83,7 +83,7 @@ byte[] moreBytes = GetMoreBytes();
 byte[] concat = bytes.Concat(moreBytes).ToArray(); // System.Linq
 ```
 
-In this case the user cannot be relied upon to tell us whether its safe to do so, as the caller is in a *legacy lengths* assembly. It is therefore proposed that the JIT compiler adds an automatic runtime length check whenever a method returns an array, a `string`, a `Memory<T>` or a `ReadOnlyMemory<T>` that crosses the boundary from a *native lengths* assembly to a *legacy lengths* assembly. The check throws either `OutOfMemoryException` or `OverflowException` - **To Be Decided which one**.
+In this case the user cannot be relied upon to tell us whether its safe to do so, as the caller is in a *legacy lengths* assembly. It is therefore proposed that the JIT compiler adds an automatic runtime length check whenever a method returns an array, a `string`, a `Memory<T>` or a `ReadOnlyMemory<T>` that crosses the boundary from a *native lengths* assembly to a *legacy lengths* assembly. This applies to both return values and output arguments. The check throws either `OutOfMemoryException` or `OverflowException` - **To Be Decided which one**.
 
 **TODO Do we think this is an acceptable overhead? -Probably virtually inexistent for most applications- Do we have a better idea instead? For example, System.LINQ is extensively used, so we need to be careful**
 
