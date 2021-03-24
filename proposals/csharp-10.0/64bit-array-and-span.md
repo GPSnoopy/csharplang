@@ -2,7 +2,7 @@
 
 ## Summary
 
-Expand arrays (e.g. `float[]`), `string`, `Span<T>` and `ReadOnlySpan<T>` to have 64-bit lengths on 64-bit platforms (also known as native lengths).
+Expand arrays (e.g. `float[]`), `string`, `Memory<T>`, `ReadOnlyMemory<T>`, `Span<T>` and `ReadOnlySpan<T>` to have 64-bit lengths on 64-bit platforms (also known as native lengths).
 
 ## Motivation
 
@@ -14,13 +14,13 @@ At the type of writing this (2021-03-23), the latest high-end smartphones have 8
 
 ## Proposal
 
-The proposed solution is to change the signature of arrays, `string`, `Span<T>` and `ReadOnlySpan<T>` to have an `nint Length` property and an `nint` indexing operator (similar to what C++ does with `ssize_t`), respectively superseding and replacing the `int Length` and `int` indexing operator.
+The proposed solution is to change the signature of arrays, `string`, `Memory<T>`, `ReadOnlyMemory<T>`, `Span<T>` and `ReadOnlySpan<T>` to have an `nint Length` property and an `nint` indexing operator (similar to what C++ does with `ssize_t`), respectively superseding and replacing the `int Length` and `int` indexing operator.
 
 As this would break existing C# application compilation, an opt-in mechanism similar to what is done with C# 8.0 nullables is proposed. By default, assemblies are compiled with *legacy lengths* but new assemblies (or projects that have been ported the new native lengths) can opt-in to be compiled with *native lengths* support.
 
 ## Future Improvements
 
-This proposal limits itself to arrays, `string`, `Span<T>` and `ReadOnlySpan<T>`. The next logical step is to tackle all the standard containers such as `List<T>`, `Dictionary<T>`, etc.
+This proposal limits itself to arrays, `string`, `Memory<T>`, `ReadOnlyMemory<T>`, `Span<T>` and `ReadOnlySpan<T>`. The next logical step is to tackle all the standard containers such as `List<T>`, `Dictionary<T>`, etc.
 
 ## Language Impacts
 
@@ -46,12 +46,20 @@ In order to accommodate these changes, various parts of the dotnet 64-bit runtim
 
 The proposal assumes that these are always enabled, irrespective of whether any assembly is marked as *legacy lengths* or *native lengths*.
 
-- The C++ runtime implementation of .NET arrays and strings need to use `ssize_t` to store their length (**TODO I believe this is already the case, verify it**).
-- The .NET runtime implementation of `Span<T>` and `ReadOnlySpan<T>` need to internally store their length as `nint`.
+src/coreclr/vm/object.h
+
+- The C++ runtime implementation of .NET arrays need to use `ssize_t` to store their length (`ArrayBase` in dotnet/runtime/src/coreclr/vm/object.h already has extra padding when compiling for 64-bit).
+- The C++ runtime implementation of .NET strings need to use `ssize_t` to store their length (`StringObject` in dotnet/runtime/src/coreclr/vm/object.h does not have enough padding, this adds 4 bytes per string instancfe in 64-bit).
+- The .NET runtime implementation of `Memory<T>`, `ReadOnlyMemory<T>`, `Span<T>` and `ReadOnlySpan<T>` need to internally store their length as `nint`.
 - The .NET runtime implementation of `System.Array` needs to be updated to reflect the same type changes.
+- The .NET standard libraries needs to be ported to *native lengths* (e.g. loops using `nint`, length arithmetic using `nint`, etc - `System.Linq` is a good example).
 - The JIT needs to be aware of *native lengths* when generating code that accesses arrays and strings, for both the `Length` property and the indexing operator.
 - The C# compiler and JIT compiler need to generate `foreach` code that is `nint` aware for arrays, `string`, `Span<T>` and `ReadOnlySpan<T>`.
 - The GC implementation currently assumes that containers and arrays have up to 2^31 elements and outgoing references. This limitation needs to be lifted.
+
+## External Tools Impacts
+
+External tools such as debuggers (e.g. SoS) may have hard-coded assumptions about the memory layout of arrays and strings and will need to be updated to be compatible with the new runtime.
 
 ## Boundaries Between Assemblies
 
@@ -65,10 +73,28 @@ In practice, applications rarely need to pass large amount of data to their enti
 
 ### Calling *Native Lengths* Assembly From *Legacy Lengths* Assembly
 
-The proposed aforementioned runtime changes mean this should work as expected.
+The proposed aforementioned runtime changes mean this should work as expected when passing a *legacy lengths* array as a function argument to a *native length* assembly.
+
+However, a *native lengths* assembly method returning an array or string to a *legacy lengths* assembly is problematic. For example:
+
+```c#
+byte[] bytes = GetSomeBytes();
+byte[] moreBytes = GetMoreBytes();
+byte[] concat = bytes.Concat(moreBytes).ToArray(); // System.Linq
+```
+
+In this case the user cannot be relied upon to tell us whether its safe to do so, as the caller is in a *legacy lengths* assembly. It is therefore proposed that the JIT compiler adds an automatic runtime length check whenever a method returns an array, a `string`, a `Memory<T>` or a `ReadOnlyMemory<T>` that crosses the boundary from a *native lengths* assembly to a *legacy lengths* assembly. The check throws either `OutOfMemoryException` or `OverflowException` - **To Be Decided which one**.
+
+**TODO Do we think this is an acceptable overhead? -Probably virtually inexistent for most applications- Do we have a better idea instead? For example, System.LINQ is extensively used, so we need to be careful**
 
 ## FAQ
 
-...
+**Expanding strings to support 64-bit lengths add 4 bytes per instance. Do we accept this cost?**
+
+.NET reference objects in 64-bit are already much larger than their 32-bit counterpart. Each reference pointer is 8 bytes instead of 4 bytes, and the object themselves have a minimum size of 24 bytes instead of 12 bytes (object header, method table pointer, and min size of instance field - all 8 bytes instead of 4 bytes).
+
+Thus a string instance is currently at minimum 32 bytes, not including the actual string content. Adding an extra 4 bytes for the 64-bit length would likely push this to 40 bytes due to alignment.
+
+This proposal assumes that such an overhead would be virtually unoticeable to most applications.
 
 
